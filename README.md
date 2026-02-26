@@ -1,5 +1,9 @@
 # mcp-fw
 
+[![PyPI version](https://img.shields.io/pypi/v/mcp-fw)](https://pypi.org/project/mcp-fw/)
+[![Python](https://img.shields.io/pypi/pyversions/mcp-fw)](https://pypi.org/project/mcp-fw/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **MCP servers can read your files, run processes, and access the network — all without asking.**
 
 mcp-fw is a firewall proxy that sits between Claude Desktop and MCP servers.

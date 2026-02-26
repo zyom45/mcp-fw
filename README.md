@@ -1,5 +1,6 @@
 # mcp-fw
 
+[![CI](https://github.com/zyom45/mcp-fw/actions/workflows/ci.yml/badge.svg)](https://github.com/zyom45/mcp-fw/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/mcp-fw)](https://pypi.org/project/mcp-fw/)
 [![Python](https://img.shields.io/pypi/pyversions/mcp-fw)](https://pypi.org/project/mcp-fw/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

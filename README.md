@@ -8,7 +8,7 @@
 **MCP servers can read your files, run processes, and access the network — all without asking.**
 
 mcp-fw is a firewall proxy that sits between Claude Desktop and MCP servers.
-It uses [NAIL](https://github.com/zyom45/nail) effect labels to control exactly what each server can do.
+It uses [NAIL](https://github.com/watari-ai/nail) effect labels to control exactly what each server can do.
 
 ```
 Claude Desktop  ←→  mcp-fw (proxy)  ←→  MCP Server
@@ -132,7 +132,7 @@ A `[FW]` icon appears in your menubar:
    → Blocked: return error
 ```
 
-The key insight: tools aren't just allowed or denied by name — they're classified by **what they do** (filesystem, network, process, etc.) using [NAIL's effect system](https://github.com/zyom45/nail). This means mcp-fw can enforce policies on servers it has never seen before.
+The key insight: tools aren't just allowed or denied by name — they're classified by **what they do** (filesystem, network, process, etc.) using [NAIL's effect system](https://github.com/watari-ai/nail). This means mcp-fw can enforce policies on servers it has never seen before.
 
 ## Policy Reference
 

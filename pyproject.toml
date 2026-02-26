@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-fw"
-version = "0.2.2"
+version = "0.2.3"
 description = "MCP Firewall Proxy — policy-based tool access control using NAIL effects"
 requires-python = ">=3.10"
 license = "MIT"

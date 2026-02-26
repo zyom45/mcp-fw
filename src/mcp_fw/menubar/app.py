@@ -21,7 +21,7 @@ class McpFwMenuBarApp(rumps.App):
     """macOS menubar app for managing mcp-fw policies."""
 
     def __init__(self, policy_path: Path) -> None:
-        icon_path = Path(__file__).parent / "resources" / "icon.png"
+        icon_path = Path(__file__).parent / "resources" / "icon.pdf"
         if icon_path.exists():
             super().__init__("FW", icon=str(icon_path), quit_button=None, template=True)
         else:

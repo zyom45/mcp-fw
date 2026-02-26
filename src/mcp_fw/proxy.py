@@ -28,6 +28,14 @@ class FirewallProxy:
         self._backend: ClientSession | None = None
         self._allowed_names: set[str] = set()
 
+    async def _ensure_allowed_names(self) -> set[str]:
+        """Lazily initialize allowed tool names if not yet populated."""
+        if not self._allowed_names:
+            assert self._backend is not None
+            result = await self._backend.list_tools()
+            _, self._allowed_names = build_allowed_tools(result.tools, self.policy)
+        return self._allowed_names
+
     async def run(self) -> None:
         """Start the proxy: connect to backend, then serve the frontend."""
         async with AsyncExitStack() as stack:
@@ -81,7 +89,8 @@ class FirewallProxy:
         async def handle_call_tool(
             name: str, arguments: dict | None
         ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-            if not is_tool_allowed(name, self._allowed_names):
+            allowed = await self._ensure_allowed_names()
+            if not is_tool_allowed(name, allowed):
                 logger.warning("Blocked tool call: %s", name)
                 raise McpError(
                     types.ErrorData(
@@ -96,10 +105,12 @@ class FirewallProxy:
         @server.list_resources()
         async def handle_list_resources() -> list[types.Resource]:
             result = await backend.list_resources()
+            logger.info("Forwarding %d resources (not filtered)", len(result.resources))
             return list(result.resources)
 
         @server.read_resource()
         async def handle_read_resource(uri) -> str:
+            logger.info("Forwarding read_resource: %s (not filtered)", uri)
             result = await backend.read_resource(uri)
             # Return the text of the first content item
             for content in result.contents:
@@ -112,10 +123,12 @@ class FirewallProxy:
         @server.list_prompts()
         async def handle_list_prompts() -> list[types.Prompt]:
             result = await backend.list_prompts()
+            logger.info("Forwarding %d prompts (not filtered)", len(result.prompts))
             return list(result.prompts)
 
         @server.get_prompt()
         async def handle_get_prompt(
             name: str, arguments: dict[str, str] | None
         ) -> types.GetPromptResult:
+            logger.info("Forwarding get_prompt: %s (not filtered)", name)
             return await backend.get_prompt(name, arguments)

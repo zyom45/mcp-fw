@@ -93,6 +93,38 @@ def test_load_policy_invalid_override_effect(tmp_path: Path) -> None:
         load_policy(p, "bad")
 
 
+def test_load_policy_empty_yaml(tmp_path: Path) -> None:
+    p = tmp_path / "empty.yaml"
+    p.write_text("")
+    with pytest.raises(ValueError, match="YAML mapping"):
+        load_policy(p, "any")
+
+
+def test_load_policy_non_dict_yaml(tmp_path: Path) -> None:
+    p = tmp_path / "list.yaml"
+    p.write_text("- item1\n- item2\n")
+    with pytest.raises(ValueError, match="YAML mapping"):
+        load_policy(p, "any")
+
+
+def test_load_policy_missing_servers_key(tmp_path: Path) -> None:
+    p = tmp_path / "noservers.yaml"
+    p.write_text("something_else: true\n")
+    with pytest.raises(ValueError, match="'servers' mapping"):
+        load_policy(p, "any")
+
+
+def test_load_policy_missing_command(tmp_path: Path) -> None:
+    p = tmp_path / "nocmd.yaml"
+    p.write_text(textwrap.dedent("""\
+        servers:
+          bad:
+            allow: [FS]
+    """))
+    with pytest.raises(ValueError, match="missing required 'command'"):
+        load_policy(p, "bad")
+
+
 def test_compute_effective_allowed_with_allow_and_deny() -> None:
     policy = ServerPolicy(name="t", command="echo", allow={"FS", "IO", "NET"}, deny={"NET"})
     assert compute_effective_allowed(policy) == {"FS", "IO"}

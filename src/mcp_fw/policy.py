@@ -56,6 +56,13 @@ def load_policy(path: str | Path, server_name: str) -> ServerPolicy:
     with open(path) as f:
         data: dict[str, Any] = yaml.safe_load(f)
 
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Policy file must contain a YAML mapping, got {type(data).__name__}"
+        )
+    if "servers" not in data or not isinstance(data["servers"], dict):
+        raise ValueError("Policy file must contain a 'servers' mapping")
+
     servers = data.get("servers", {})
     if server_name not in servers:
         raise KeyError(
@@ -64,6 +71,9 @@ def load_policy(path: str | Path, server_name: str) -> ServerPolicy:
         )
 
     cfg = servers[server_name]
+
+    if "command" not in cfg:
+        raise ValueError(f"Server '{server_name}' is missing required 'command' field")
 
     allow = set(cfg.get("allow", []))
     deny = set(cfg.get("deny", []))

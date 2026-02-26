@@ -104,6 +104,26 @@ async def test_proxy_forwards_allowed_call(policy_file: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_proxy_call_tool_without_list_tools(policy_file: Path) -> None:
+    """call_tool should work even if list_tools was never called (lazy init)."""
+    import sys
+
+    server_params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "mcp_fw", "--config", str(policy_file), "--server", "mock"],
+    )
+
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            # Do NOT call list_tools first — call_tool should still work
+            result = await session.call_tool("read_file", {"path": "/tmp/test.txt"})
+            assert not result.isError
+            assert any("contents of /tmp/test.txt" in c.text for c in result.content if hasattr(c, "text"))
+
+
+@pytest.mark.asyncio
 async def test_proxy_blocks_denied_call(policy_file: Path) -> None:
     """call_tool for a denied tool should return an error."""
     import sys

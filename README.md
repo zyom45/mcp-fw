@@ -93,7 +93,7 @@ A `[FW]` icon appears in your menubar:
 
 ```
 [FW]
-├── mcp-fw v0.1.0
+├── mcp-fw v0.2.3
 ├── ────────
 ├── ● filesystem
 │   ├── Status: Running

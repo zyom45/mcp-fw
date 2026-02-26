@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import locale
+import subprocess
 
 _STRINGS: dict[str, dict[str, str]] = {
     "en": {
@@ -61,7 +62,27 @@ _STRINGS: dict[str, dict[str, str]] = {
 
 
 def _detect_lang() -> str:
-    """Detect language from macOS / system locale, fallback to 'en'."""
+    """Detect language from macOS UI preferences, fallback to 'en'."""
+    # First, try macOS AppleLanguages (reflects System Settings → Language & Region)
+    try:
+        result = subprocess.run(
+            ["defaults", "read", "-g", "AppleLanguages"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0:
+            for token in result.stdout.replace("(", "").replace(")", "").replace('"', "").replace(",", "").split():
+                token = token.strip()
+                if not token:
+                    continue
+                lang = token.split("-")[0]
+                if lang in _STRINGS:
+                    return lang
+    except Exception:
+        pass
+
+    # Fallback: environment-variable locale
     try:
         loc, _ = locale.getdefaultlocale()
     except ValueError:

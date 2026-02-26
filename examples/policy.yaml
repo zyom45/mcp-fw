@@ -1,0 +1,14 @@
+servers:
+  filesystem:
+    command: npx
+    args: ["@modelcontextprotocol/server-filesystem", "/tmp"]
+    allow: [FS, IO]
+    deny: [NET]
+
+  everything:
+    command: npx
+    args: ["@modelcontextprotocol/server-everything"]
+    allow: []
+    deny: [PROC, NET]
+    tool_overrides:
+      echo: [IO]

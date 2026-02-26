@@ -7,6 +7,7 @@ import asyncio
 import logging
 import sys
 
+from mcp_fw import __version__
 from mcp_fw.policy import load_policy
 from mcp_fw.proxy import FirewallProxy
 
@@ -15,6 +16,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="mcp-fw",
         description="MCP Firewall Proxy — policy-based tool access control",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         "--config",

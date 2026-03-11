@@ -14,7 +14,7 @@ from mcp_fw import __version__
 from mcp_fw.menubar.claude_desktop import remove_mcp_fw_from_claude
 from mcp_fw.menubar.process_monitor import stop_server
 
-COMMANDS = {"run", "stop", "claude-remove", "menubar", "upgrade"}
+COMMANDS = {"run", "stop", "claude-remove", "menubar", "upgrade", "update"}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -97,6 +97,10 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "upgrade",
         help="Upgrade mcp-fw to the latest version via pipx or pip",
+    )
+    subparsers.add_parser(
+        "update",
+        help="Alias for upgrade",
     )
     return parser
 
@@ -201,7 +205,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "claude-remove":
         _remove_claude_config(args)
         return
-    if args.command == "upgrade":
+    if args.command in {"upgrade", "update"}:
         _upgrade(args)
         return
     parser.print_help(sys.stderr)

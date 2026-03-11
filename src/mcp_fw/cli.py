@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,7 +14,7 @@ from mcp_fw import __version__
 from mcp_fw.menubar.claude_desktop import remove_mcp_fw_from_claude
 from mcp_fw.menubar.process_monitor import stop_server
 
-COMMANDS = {"run", "stop", "claude-remove", "menubar"}
+COMMANDS = {"run", "stop", "claude-remove", "menubar", "upgrade"}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -24,7 +26,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  mcp-fw run --config policy.yaml --server filesystem\n"
             "  mcp-fw stop --server filesystem\n"
             "  mcp-fw claude-remove [--server filesystem]\n"
-            "  mcp-fw menubar --config policy.yaml\n\n"
+            "  mcp-fw menubar --config policy.yaml\n"
+            "  mcp-fw upgrade\n\n"
             "Legacy shorthand:\n"
             "  mcp-fw --config policy.yaml --server filesystem\n"
             "  This is treated as: mcp-fw run ..."
@@ -90,6 +93,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--server",
         help="Remove only one server entry ({server}-fw). Omit to remove all mcp-fw entries.",
     )
+
+    subparsers.add_parser(
+        "upgrade",
+        help="Upgrade mcp-fw to the latest version via pipx or pip",
+    )
     return parser
 
 
@@ -144,6 +152,17 @@ def _remove_claude_config(args: argparse.Namespace) -> None:
         print(f"Removed {removed} mcp-fw Claude Desktop config entry(s).")
 
 
+def _upgrade(_args: argparse.Namespace) -> None:
+    """Upgrade mcp-fw via pipx or pip."""
+    if shutil.which("pipx"):
+        cmd = ["pipx", "upgrade", "mcp-fw"]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "mcp-fw"]
+    print(f"Running: {' '.join(cmd)}")
+    result = subprocess.run(cmd)
+    raise SystemExit(result.returncode)
+
+
 def _launch_menubar(args: argparse.Namespace) -> None:
     """Launch the menubar app."""
     from mcp_fw.menubar.app import main as menubar_main
@@ -181,6 +200,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "claude-remove":
         _remove_claude_config(args)
+        return
+    if args.command == "upgrade":
+        _upgrade(args)
         return
     parser.print_help(sys.stderr)
     raise SystemExit(2)

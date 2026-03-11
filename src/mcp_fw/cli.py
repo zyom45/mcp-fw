@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import shutil
 import subprocess
@@ -156,15 +157,47 @@ def _remove_claude_config(args: argparse.Namespace) -> None:
         print(f"Removed {removed} mcp-fw Claude Desktop config entry(s).")
 
 
+def _is_managed_by_pipx(package_name: str) -> bool:
+    """Return whether *package_name* is installed and managed by pipx."""
+    if not shutil.which("pipx"):
+        return False
+
+    result = subprocess.run(
+        ["pipx", "list", "--json"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False
+
+    venvs = payload.get("venvs", {})
+    return package_name in venvs
+
+
+def _run_upgrade_command(cmd: list[str]) -> int:
+    """Run an upgrade command and return its exit code."""
+    print(f"Running: {' '.join(cmd)}")
+    return subprocess.run(cmd).returncode
+
+
 def _upgrade(_args: argparse.Namespace) -> None:
     """Upgrade mcp-fw via pipx or pip."""
-    if shutil.which("pipx"):
-        cmd = ["pipx", "upgrade", "mcp-fw"]
-    else:
-        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "mcp-fw"]
-    print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd)
-    raise SystemExit(result.returncode)
+    pip_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "mcp-fw"]
+    if not _is_managed_by_pipx("mcp-fw"):
+        raise SystemExit(_run_upgrade_command(pip_cmd))
+
+    pipx_cmd = ["pipx", "upgrade", "mcp-fw"]
+    pipx_code = _run_upgrade_command(pipx_cmd)
+    if pipx_code == 0:
+        raise SystemExit(0)
+
+    print("pipx upgrade failed, falling back to pip", file=sys.stderr)
+    raise SystemExit(_run_upgrade_command(pip_cmd))
 
 
 def _launch_menubar(args: argparse.Namespace) -> None:

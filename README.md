@@ -5,6 +5,8 @@
 [![Python](https://img.shields.io/pypi/pyversions/mcp-fw)](https://pypi.org/project/mcp-fw/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+[日本語版 README](README_ja.md)
+
 **MCP servers can read your files, run processes, and access the network — all without asking.**
 
 mcp-fw is a firewall proxy that sits between Claude Desktop and MCP servers.
@@ -41,6 +43,29 @@ mcp-fw enforces boundaries:
 pip install mcp-fw
 ```
 
+## Commands
+
+Primary CLI:
+
+```bash
+mcp-fw run --config policy.yaml --server filesystem [--verbose] [--log-file /path/to/file.log]
+mcp-fw stop --server filesystem
+mcp-fw claude-remove [--server filesystem]
+mcp-fw menubar --config policy.yaml
+```
+
+Legacy shorthand still supported:
+
+```bash
+mcp-fw --config policy.yaml --server filesystem [--verbose] [--log-file /path/to/file.log]
+```
+
+Dedicated menubar entry point:
+
+```bash
+mcp-fw-menubar --config policy.yaml
+```
+
 ### 1. Write a policy
 
 ```yaml
@@ -72,6 +97,14 @@ In `claude_desktop_config.json`:
 
 That's it. Claude Desktop now talks to `mcp-fw`, which filters tools before forwarding to the real server.
 
+To remove mcp-fw entries later:
+
+```bash
+mcp-fw claude-remove
+# or only one server
+mcp-fw claude-remove --server filesystem
+```
+
 ### 3. See what happened
 
 ```
@@ -80,12 +113,20 @@ $ mcp-fw --config policy.yaml --server filesystem --verbose
 2025-01-15 10:00:05 [WARNING] Blocked tool call: fetch_url
 ```
 
+To stop a running proxy process:
+
+```bash
+mcp-fw stop --server filesystem
+```
+
 ## Menubar App (macOS)
 
 For a GUI experience:
 
 ```bash
 pip install "mcp-fw[menubar]"
+mcp-fw menubar --config policy.yaml
+# or:
 mcp-fw-menubar --config policy.yaml
 ```
 
@@ -93,7 +134,7 @@ A `[FW]` icon appears in your menubar:
 
 ```
 [FW]
-├── mcp-fw v0.2.3
+├── mcp-fw v0.2.5
 ├── ────────
 ├── ● filesystem
 │   ├── Status: Running
@@ -102,6 +143,7 @@ A `[FW]` icon appears in your menubar:
 │   ├── [x] IO
 │   ├── [ ] NET          ← toggle effects live
 │   ├── [ ] PROC
+│   ├── Stop Proxy
 │   └── ...
 ├── ○ everything
 ├── ────────
@@ -109,11 +151,14 @@ A `[FW]` icon appears in your menubar:
 ├── View Logs...
 ├── ────────
 ├── Sync to Claude Desktop
+├── Remove from Claude Desktop
 └── Quit
 ```
 
 - **Toggle effects** with checkboxes — changes are written to `policy.yaml` instantly
 - **Sync to Claude Desktop** generates `claude_desktop_config.json` entries automatically
+- **Stop Proxy** terminates a running proxy process for a server
+- **Remove from Claude Desktop** deletes generated `*-fw` entries from `claude_desktop_config.json`
 - **View Logs** opens a live log viewer
 - **Process monitor** shows ● running / ○ stopped status per server
 

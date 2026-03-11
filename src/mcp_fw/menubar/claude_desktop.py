@@ -16,6 +16,20 @@ def _get_python_path() -> str:
     return sys.executable
 
 
+def _load_claude_config() -> dict[str, Any]:
+    """Load Claude Desktop config, returning an empty mapping when absent."""
+    if not CLAUDE_CONFIG.exists():
+        return {}
+    return json.loads(CLAUDE_CONFIG.read_text())
+
+
+def _write_claude_config(config: dict[str, Any]) -> Path:
+    """Persist Claude Desktop config."""
+    CLAUDE_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    CLAUDE_CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
+    return CLAUDE_CONFIG
+
+
 def _build_mcp_server_entry(
     server_name: str,
     server_cfg: dict[str, Any],
@@ -50,11 +64,7 @@ def sync_policy_to_claude(
     """
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Load existing config
-    config: dict[str, Any] = {}
-    if CLAUDE_CONFIG.exists():
-        config = json.loads(CLAUDE_CONFIG.read_text())
-
+    config = _load_claude_config()
     existing_servers = config.get("mcpServers", {})
 
     # Remove old mcp-fw entries (keys ending with "-fw")
@@ -69,8 +79,32 @@ def sync_policy_to_claude(
 
     config["mcpServers"] = preserved
 
-    # Write config
-    CLAUDE_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-    CLAUDE_CONFIG.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n")
+    return _write_claude_config(config)
 
-    return CLAUDE_CONFIG
+
+def remove_mcp_fw_from_claude(server_name: str | None = None) -> tuple[Path, int]:
+    """Remove mcp-fw managed Claude Desktop entries.
+
+    When ``server_name`` is provided, only ``{server_name}-fw`` is removed.
+    Otherwise all ``*-fw`` entries are removed.
+    """
+    config = _load_claude_config()
+    existing_servers = config.get("mcpServers", {})
+    if not existing_servers:
+        return CLAUDE_CONFIG, 0
+
+    if server_name is None:
+        keys_to_remove = {key for key in existing_servers if key.endswith("-fw")}
+    else:
+        keys_to_remove = {f"{server_name}-fw"} if f"{server_name}-fw" in existing_servers else set()
+
+    if not keys_to_remove:
+        return CLAUDE_CONFIG, 0
+
+    config["mcpServers"] = {
+        key: value
+        for key, value in existing_servers.items()
+        if key not in keys_to_remove
+    }
+    _write_claude_config(config)
+    return CLAUDE_CONFIG, len(keys_to_remove)

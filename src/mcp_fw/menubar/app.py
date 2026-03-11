@@ -10,11 +10,11 @@ from pathlib import Path
 import rumps
 
 from mcp_fw import __version__
-from mcp_fw.menubar.claude_desktop import LOG_DIR, sync_policy_to_claude
+from mcp_fw.menubar.claude_desktop import LOG_DIR, remove_mcp_fw_from_claude, sync_policy_to_claude
 from mcp_fw.menubar.i18n import t
 from mcp_fw.menubar.log_viewer import LogViewerWindow
 from mcp_fw.menubar.policy_manager import TOGGLEABLE_EFFECTS, PolicyManager
-from mcp_fw.menubar.process_monitor import ServerStatus, check_server_status
+from mcp_fw.menubar.process_monitor import ServerStatus, check_server_status, stop_server
 
 
 class McpFwMenuBarApp(rumps.App):
@@ -77,6 +77,12 @@ class McpFwMenuBarApp(rumps.App):
 
             server_item.add(None)  # separator
 
+            stop_item = rumps.MenuItem(t("stop_server"), callback=self._stop_server)
+            stop_item._fw_server = name
+            server_item.add(stop_item)
+
+            server_item.add(None)  # separator
+
             # Tool overrides action
             overrides_item = rumps.MenuItem(
                 t("tool_overrides"), callback=self._on_tool_overrides
@@ -99,6 +105,9 @@ class McpFwMenuBarApp(rumps.App):
         )
         menu_items.append(
             rumps.MenuItem(t("open_claude_config"), callback=self._open_claude_config)
+        )
+        menu_items.append(
+            rumps.MenuItem(t("remove_claude"), callback=self._remove_claude)
         )
         menu_items.append(None)  # separator
         menu_items.append(rumps.MenuItem(t("quit"), callback=self._quit))
@@ -150,6 +159,30 @@ class McpFwMenuBarApp(rumps.App):
         """Show the log viewer window."""
         self._log_viewer.show()
 
+    def _stop_server(self, sender: rumps.MenuItem) -> None:
+        """Stop the selected proxy process."""
+        server = sender._fw_server
+        response = rumps.alert(
+            title=t("stop_server_title"),
+            message=t("stop_server_message", server=server),
+            ok=t("stop_server_ok"),
+            cancel=t("stop_server_cancel"),
+        )
+        if response != 1:
+            return
+
+        count = stop_server(server)
+        if count == 0:
+            rumps.alert(title=t("stop_server_title"), message=t("stop_server_missing", server=server))
+            return
+
+        rumps.notification(
+            title="mcp-fw",
+            subtitle=t("stop_server_complete_subtitle"),
+            message=t("stop_server_complete_message", server=server, count=count),
+        )
+        self._refresh_status(None)
+
     def _sync_claude(self, _sender: rumps.MenuItem) -> None:
         """Sync policy to Claude Desktop config."""
         response = rumps.alert(
@@ -183,6 +216,34 @@ class McpFwMenuBarApp(rumps.App):
 
         subprocess.run(["open", str(CLAUDE_CONFIG)])
 
+    def _remove_claude(self, _sender: rumps.MenuItem) -> None:
+        """Remove mcp-fw managed Claude Desktop config entries."""
+        response = rumps.alert(
+            title=t("remove_claude_title"),
+            message=t("remove_claude_message"),
+            ok=t("remove_claude_ok"),
+            cancel=t("remove_claude_cancel"),
+        )
+        if response != 1:
+            return
+
+        try:
+            _, removed = remove_mcp_fw_from_claude()
+            if removed == 0:
+                rumps.alert(title=t("remove_claude_title"), message=t("remove_claude_missing"))
+                return
+
+            rumps.notification(
+                title="mcp-fw",
+                subtitle=t("remove_claude_complete_subtitle"),
+                message=t("remove_claude_complete_message", count=removed),
+            )
+        except Exception as e:
+            rumps.alert(
+                title=t("sync_error"),
+                message=str(e),
+            )
+
     def _quit(self, _sender: rumps.MenuItem) -> None:
         self._log_viewer.close()
         rumps.quit_application()
@@ -203,7 +264,7 @@ class McpFwMenuBarApp(rumps.App):
                 self._status_items[name].title = t("status_label", status=status_text)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="mcp-fw-menubar",
         description="mcp-fw menubar application",
@@ -213,7 +274,7 @@ def main() -> None:
         required=True,
         help="Path to the policy YAML file",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     policy_path = Path(args.config).resolve()
     if not policy_path.exists():

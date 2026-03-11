@@ -2,7 +2,7 @@
 
 import mcp.types as types
 
-from mcp_fw.filtering import build_allowed_tools, is_tool_allowed
+from mcp_fw.filtering import build_allowed_tools, inspect_tools, is_tool_allowed
 from mcp_fw.policy import ServerPolicy
 
 
@@ -88,3 +88,29 @@ def test_is_tool_allowed() -> None:
     allowed = {"read_file", "log"}
     assert is_tool_allowed("read_file", allowed) is True
     assert is_tool_allowed("http_get", allowed) is False
+
+
+def test_inspect_tools_shows_inferred_and_effective_effects() -> None:
+    tools = [
+        _make_tool("http_get", "Fetch a URL via HTTP"),
+        _make_tool("ambiguous_tool", "Does something"),
+    ]
+    policy = ServerPolicy(
+        name="test",
+        command="echo",
+        allow={"FS", "IO"},
+        tool_overrides={"ambiguous_tool": ["FS"]},
+    )
+
+    inspected = inspect_tools(tools, policy)
+
+    http_get = next(item for item in inspected if item.name == "http_get")
+    ambiguous = next(item for item in inspected if item.name == "ambiguous_tool")
+
+    assert "NET" in http_get.inferred_effects
+    assert http_get.allowed is False
+    assert http_get.override_applied is False
+    assert ambiguous.inferred_effects != ambiguous.effective_effects
+    assert ambiguous.effective_effects == ("FS",)
+    assert ambiguous.override_applied is True
+    assert ambiguous.allowed is True

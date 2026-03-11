@@ -14,6 +14,7 @@ class _CompletedProcess:
 
 
 def test_find_server_pids_filters_out_current_process(monkeypatch) -> None:
+    monkeypatch.setattr(process_monitor, "read_state", lambda _server: None)
     monkeypatch.setattr(process_monitor.os, "getpid", lambda: 200)
 
     def fake_run(*_args, **_kwargs):
@@ -43,3 +44,15 @@ def test_stop_server_sends_sigterm(monkeypatch) -> None:
 
     assert process_monitor.stop_server("filesystem") == 2
     assert killed == [(111, signal.SIGTERM), (222, signal.SIGTERM)]
+
+
+def test_find_server_pids_prefers_tracked_state(monkeypatch) -> None:
+    monkeypatch.setattr(process_monitor, "read_state", lambda _server: {"pid": 555})
+    monkeypatch.setattr(process_monitor.os, "getpid", lambda: 200)
+    monkeypatch.setattr(
+        process_monitor.subprocess,
+        "run",
+        lambda *_args, **_kwargs: _CompletedProcess(0, "555\n777\n"),
+    )
+
+    assert process_monitor.find_server_pids("filesystem") == [555, 777]

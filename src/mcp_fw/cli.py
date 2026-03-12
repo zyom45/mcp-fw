@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
+import shutil
+import subprocess
 import sys
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -14,7 +17,7 @@ from mcp_fw.menubar.claude_desktop import remove_mcp_fw_from_claude
 from mcp_fw.menubar.process_monitor import check_server_status, find_server_pids, stop_server
 from mcp_fw.runtime_state import managed_state, read_state
 
-COMMANDS = {"run", "inspect", "status", "stop", "claude-remove", "menubar"}
+COMMANDS = {"run", "inspect", "status", "stop", "claude-remove", "menubar", "upgrade", "update"}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -28,7 +31,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  mcp-fw status --server filesystem\n"
             "  mcp-fw stop --server filesystem\n"
             "  mcp-fw claude-remove [--server filesystem]\n"
-            "  mcp-fw menubar --config policy.yaml\n\n"
+            "  mcp-fw menubar --config policy.yaml\n"
+            "  mcp-fw upgrade\n\n"
             "Legacy shorthand:\n"
             "  mcp-fw --config policy.yaml --server filesystem\n"
             "  This is treated as: mcp-fw run ..."
@@ -119,6 +123,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "--server",
         help="Remove only one server entry ({server}-fw). Omit to remove all mcp-fw entries.",
     )
+
+    subparsers.add_parser(
+        "upgrade",
+        help="Upgrade mcp-fw to the latest version via pipx or pip",
+    )
+    subparsers.add_parser(
+        "update",
+        help="Alias for upgrade",
+    )
     return parser
 
 
@@ -158,8 +171,6 @@ def _run_proxy(args: argparse.Namespace) -> None:
 
 async def _inspect_proxy_async(args: argparse.Namespace) -> None:
     """Connect to the backend and print per-tool inspection results."""
-    import sys
-
     from mcp.client.session import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
@@ -221,7 +232,7 @@ def _show_status(args: argparse.Namespace) -> None:
         print("state_file=-")
         return
 
-    print(f"state_file=tracked")
+    print("state_file=tracked")
     print(f"config_path={state.get('config_path') or '-'}")
     print(f"log_file={state.get('log_file') or '-'}")
 
@@ -237,6 +248,49 @@ def _remove_claude_config(args: argparse.Namespace) -> None:
         print(f"Removed Claude Desktop config entry for '{args.server}-fw'.")
     else:
         print(f"Removed {removed} mcp-fw Claude Desktop config entry(s).")
+
+
+def _is_managed_by_pipx(package_name: str) -> bool:
+    """Return whether *package_name* is installed and managed by pipx."""
+    if not shutil.which("pipx"):
+        return False
+
+    result = subprocess.run(
+        ["pipx", "list", "--json"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False
+
+    venvs = payload.get("venvs", {})
+    return package_name in venvs
+
+
+def _run_upgrade_command(cmd: list[str]) -> int:
+    """Run an upgrade command and return its exit code."""
+    print(f"Running: {' '.join(cmd)}")
+    return subprocess.run(cmd).returncode
+
+
+def _upgrade(_args: argparse.Namespace) -> None:
+    """Upgrade mcp-fw via pipx or pip."""
+    pip_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "mcp-fw"]
+    if not _is_managed_by_pipx("mcp-fw"):
+        raise SystemExit(_run_upgrade_command(pip_cmd))
+
+    pipx_cmd = ["pipx", "upgrade", "mcp-fw"]
+    pipx_code = _run_upgrade_command(pipx_cmd)
+    if pipx_code == 0:
+        raise SystemExit(0)
+
+    print("pipx upgrade failed, falling back to pip", file=sys.stderr)
+    raise SystemExit(_run_upgrade_command(pip_cmd))
 
 
 def _launch_menubar(args: argparse.Namespace) -> None:
@@ -282,6 +336,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "claude-remove":
         _remove_claude_config(args)
+        return
+    if args.command in {"upgrade", "update"}:
+        _upgrade(args)
         return
     parser.print_help(sys.stderr)
     raise SystemExit(2)

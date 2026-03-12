@@ -154,7 +154,7 @@ mcp-fw-menubar --config policy.yaml
 
 ```
 [FW]
-├── mcp-fw v0.2.5
+├── mcp-fw v0.2.6
 ├── ────────
 ├── ● filesystem
 │   ├── Status: Running

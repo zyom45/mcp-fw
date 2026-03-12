@@ -10,6 +10,7 @@ from pathlib import Path
 import rumps
 
 from mcp_fw import __version__
+from mcp_fw.menubar.config_locator import missing_config_message, resolve_config_path, save_last_config_path
 from mcp_fw.menubar.claude_desktop import LOG_DIR, remove_mcp_fw_from_claude, sync_policy_to_claude
 from mcp_fw.menubar.i18n import t
 from mcp_fw.menubar.log_viewer import LogViewerWindow
@@ -271,15 +272,16 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--config",
-        required=True,
-        help="Path to the policy YAML file",
+        help="Path to the policy YAML file. If omitted, the last used config or common default paths are tried.",
     )
     args = parser.parse_args(argv)
 
-    policy_path = Path(args.config).resolve()
-    if not policy_path.exists():
-        print(f"Error: Policy file not found: {policy_path}", file=sys.stderr)
-        sys.exit(1)
+    policy_path = resolve_config_path(args.config)
+    if policy_path is None:
+        print(missing_config_message(), file=sys.stderr)
+        sys.exit(2)
+
+    save_last_config_path(policy_path)
 
     app = McpFwMenuBarApp(policy_path)
     app.run()

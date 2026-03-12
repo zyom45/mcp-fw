@@ -37,6 +37,18 @@ def test_main_help_lists_subcommands(capsys) -> None:
     assert "Legacy shorthand" in captured.out
 
 
+def test_launch_menubar_without_config_passes_empty_args(monkeypatch) -> None:
+    called: list[list[str]] = []
+
+    def fake_main(argv: list[str] | None = None) -> None:
+        called.append(argv or [])
+
+    monkeypatch.setattr("mcp_fw.menubar.app.main", fake_main)
+    cli._launch_menubar(argparse.Namespace(config=None))
+
+    assert called == [[]]
+
+
 def test_is_managed_by_pipx_false_without_binary(monkeypatch) -> None:
     monkeypatch.setattr(cli.shutil, "which", lambda _name: None)
     assert cli._is_managed_by_pipx("mcp-fw") is False

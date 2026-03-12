@@ -101,8 +101,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     menubar_parser.add_argument(
         "--config",
-        required=True,
-        help="Path to the policy YAML file",
+        help="Path to the policy YAML file. If omitted, the last used config or common default paths are tried.",
     )
 
     stop_parser = subparsers.add_parser(
@@ -297,7 +296,8 @@ def _launch_menubar(args: argparse.Namespace) -> None:
     """Launch the menubar app."""
     from mcp_fw.menubar.app import main as menubar_main
 
-    menubar_main(["--config", args.config])
+    menubar_args = ["--config", args.config] if args.config else []
+    menubar_main(menubar_args)
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:

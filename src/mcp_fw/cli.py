@@ -9,13 +9,15 @@ import logging
 import shutil
 import subprocess
 import sys
+from contextlib import AsyncExitStack
 from pathlib import Path
 
 from mcp_fw import __version__
 from mcp_fw.menubar.claude_desktop import remove_mcp_fw_from_claude
-from mcp_fw.menubar.process_monitor import stop_server
+from mcp_fw.menubar.process_monitor import check_server_status, find_server_pids, stop_server
+from mcp_fw.runtime_state import managed_state, read_state
 
-COMMANDS = {"run", "stop", "claude-remove", "menubar", "upgrade", "update"}
+COMMANDS = {"run", "inspect", "status", "stop", "claude-remove", "menubar", "upgrade", "update"}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -25,6 +27,8 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Commands:\n"
             "  mcp-fw run --config policy.yaml --server filesystem\n"
+            "  mcp-fw inspect --config policy.yaml --server filesystem\n"
+            "  mcp-fw status --server filesystem\n"
             "  mcp-fw stop --server filesystem\n"
             "  mcp-fw claude-remove [--server filesystem]\n"
             "  mcp-fw menubar --config policy.yaml\n"
@@ -64,6 +68,31 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--log-file",
         help="Also write logs to this file",
+    )
+
+    inspect_parser = subparsers.add_parser(
+        "inspect",
+        help="Inspect inferred NAIL effects and policy outcome for backend tools",
+    )
+    inspect_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the policy YAML file",
+    )
+    inspect_parser.add_argument(
+        "--server",
+        required=True,
+        help="Server name (must match a key in the policy file)",
+    )
+
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show tracked runtime status for a server",
+    )
+    status_parser.add_argument(
+        "--server",
+        required=True,
+        help="Server name to inspect",
     )
 
     menubar_parser = subparsers.add_parser(
@@ -132,7 +161,53 @@ def _run_proxy(args: argparse.Namespace) -> None:
     _configure_logging(args.verbose, args.log_file)
     policy = load_policy(args.config, args.server)
     proxy = FirewallProxy(policy)
-    asyncio.run(proxy.run())
+    with managed_state(
+        args.server,
+        config_path=str(Path(args.config).resolve()),
+        log_file=str(Path(args.log_file).resolve()) if args.log_file else None,
+    ):
+        asyncio.run(proxy.run())
+
+
+async def _inspect_proxy_async(args: argparse.Namespace) -> None:
+    """Connect to the backend and print per-tool inspection results."""
+    from mcp.client.session import ClientSession
+    from mcp.client.stdio import StdioServerParameters, stdio_client
+
+    from mcp_fw.filtering import inspect_tools
+    from mcp_fw.policy import compute_effective_allowed, load_policy
+
+    policy = load_policy(args.config, args.server)
+    server_params = StdioServerParameters(
+        command=policy.command,
+        args=policy.args,
+        env=policy.env,
+    )
+
+    async with AsyncExitStack() as stack:
+        read_stream, write_stream = await stack.enter_async_context(
+            stdio_client(server_params, errlog=sys.stderr)
+        )
+        session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
+        await session.initialize()
+        result = await session.list_tools()
+
+    inspections = inspect_tools(result.tools, policy)
+    allowed_effects = ",".join(sorted(compute_effective_allowed(policy)))
+    print(f"server={policy.name}")
+    print(f"allowed_effects={allowed_effects}")
+    print("tool\tinferred\teffective\toverride\tstatus")
+    for item in inspections:
+        inferred = ",".join(item.inferred_effects) or "-"
+        effective = ",".join(item.effective_effects) or "-"
+        override = "yes" if item.override_applied else "-"
+        status = "allowed" if item.allowed else "blocked"
+        print(f"{item.name}\t{inferred}\t{effective}\t{override}\t{status}")
+
+
+def _inspect_proxy(args: argparse.Namespace) -> None:
+    """Inspect backend tool classification."""
+    asyncio.run(_inspect_proxy_async(args))
 
 
 def _stop_proxy(args: argparse.Namespace) -> None:
@@ -142,6 +217,24 @@ def _stop_proxy(args: argparse.Namespace) -> None:
         print(f"No running mcp-fw process found for server '{args.server}'.", file=sys.stderr)
         raise SystemExit(1)
     print(f"Stopped {count} mcp-fw process(es) for server '{args.server}'.")
+
+
+def _show_status(args: argparse.Namespace) -> None:
+    """Print tracked runtime status for a server."""
+    state = read_state(args.server)
+    status = check_server_status(args.server)
+    pids = find_server_pids(args.server)
+
+    print(f"server={args.server}")
+    print(f"status={status.value}")
+    print(f"pids={','.join(str(pid) for pid in pids) if pids else '-'}")
+    if state is None:
+        print("state_file=-")
+        return
+
+    print("state_file=tracked")
+    print(f"config_path={state.get('config_path') or '-'}")
+    print(f"log_file={state.get('log_file') or '-'}")
 
 
 def _remove_claude_config(args: argparse.Namespace) -> None:
@@ -228,6 +321,12 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.command == "run":
         _run_proxy(args)
+        return
+    if args.command == "inspect":
+        _inspect_proxy(args)
+        return
+    if args.command == "status":
+        _show_status(args)
         return
     if args.command == "menubar":
         _launch_menubar(args)

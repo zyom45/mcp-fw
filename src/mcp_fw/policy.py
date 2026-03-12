@@ -8,6 +8,8 @@ servers:
     args: ["@modelcontextprotocol/server-filesystem", "/tmp"]
     allow: [FS, IO]
     deny: [NET]
+    allow_resources: false
+    allow_prompts: false
     tool_overrides:
       special_tool: [FS, NET]
 ```
@@ -20,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from nail_lang import VALID_EFFECTS
+from nail_lang import VALID_EFFECTS, validate_effects
 
 
 @dataclass
@@ -31,17 +33,21 @@ class ServerPolicy:
     env: dict[str, str] | None = None
     allow: set[str] = field(default_factory=set)
     deny: set[str] = field(default_factory=set)
+    allow_resources: bool = False
+    allow_prompts: bool = False
     tool_overrides: dict[str, list[str]] = field(default_factory=dict)
 
 
 def _validate_effects(effects: set[str] | list[str], context: str) -> None:
     """Raise ValueError if any effect label is not in VALID_EFFECTS."""
-    invalid = set(effects) - VALID_EFFECTS
-    if invalid:
+    try:
+        validate_effects(sorted(set(effects)))
+    except ValueError as exc:
+        invalid = set(effects) - VALID_EFFECTS
         raise ValueError(
             f"Invalid effect(s) in {context}: {sorted(invalid)}. "
             f"Valid effects: {sorted(VALID_EFFECTS)}"
-        )
+        ) from exc
 
 
 def load_policy(path: str | Path, server_name: str) -> ServerPolicy:
@@ -77,6 +83,8 @@ def load_policy(path: str | Path, server_name: str) -> ServerPolicy:
 
     allow = set(cfg.get("allow", []))
     deny = set(cfg.get("deny", []))
+    allow_resources = bool(cfg.get("allow_resources", False))
+    allow_prompts = bool(cfg.get("allow_prompts", False))
     tool_overrides: dict[str, list[str]] = {}
 
     _validate_effects(allow, f"servers.{server_name}.allow")
@@ -93,6 +101,8 @@ def load_policy(path: str | Path, server_name: str) -> ServerPolicy:
         env=cfg.get("env"),
         allow=allow,
         deny=deny,
+        allow_resources=allow_resources,
+        allow_prompts=allow_prompts,
         tool_overrides=tool_overrides,
     )
 

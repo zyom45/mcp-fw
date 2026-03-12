@@ -12,6 +12,8 @@
 mcp-fw is a firewall proxy that sits between Claude Desktop and MCP servers.
 It uses [NAIL](https://github.com/watari-ai/nail) effect labels to control exactly what each server can do.
 
+By default, `mcp-fw` allows tools subject to effect policy, but blocks MCP `resources` and `prompts` unless you explicitly opt in with `allow_resources: true` / `allow_prompts: true`.
+
 ```
 Claude Desktop  ←→  mcp-fw (proxy)  ←→  MCP Server
                      ↑
@@ -49,6 +51,8 @@ Primary CLI:
 
 ```bash
 mcp-fw run --config policy.yaml --server filesystem [--verbose] [--log-file /path/to/file.log]
+mcp-fw inspect --config policy.yaml --server filesystem
+mcp-fw status --server filesystem
 mcp-fw stop --server filesystem
 mcp-fw claude-remove [--server filesystem]
 mcp-fw menubar --config policy.yaml
@@ -79,6 +83,7 @@ servers:
 ```
 
 This lets the filesystem server read/write files (`FS`, `IO`) but **blocks all network access** (`NET`).
+It also keeps MCP `resources` and `prompts` blocked unless you explicitly enable them.
 
 ### 2. Point Claude Desktop to the proxy
 
@@ -96,6 +101,15 @@ In `claude_desktop_config.json`:
 ```
 
 That's it. Claude Desktop now talks to `mcp-fw`, which filters tools before forwarding to the real server.
+
+If your server uses MCP `resources` or `prompts`, opt in explicitly:
+
+```yaml
+servers:
+  filesystem:
+    allow_resources: true
+    allow_prompts: true
+```
 
 To remove mcp-fw entries later:
 
@@ -118,6 +132,14 @@ To stop a running proxy process:
 ```bash
 mcp-fw stop --server filesystem
 ```
+
+To inspect how NAIL classified tools before changing policy:
+
+```bash
+mcp-fw inspect --config policy.yaml --server filesystem
+```
+
+The output shows inferred effects, effective effects after overrides, whether an override changed classification, and the final allowed/blocked result.
 
 ## Menubar App (macOS)
 
@@ -188,6 +210,8 @@ servers:
     args: ["@org/server", "/tmp"]   # command arguments
     allow: [FS, IO]                 # permitted effects (empty = all)
     deny: [NET]                     # blocked effects (overrides allow)
+    allow_resources: false          # permit MCP resources API
+    allow_prompts: false            # permit MCP prompts API
     tool_overrides:                 # per-tool effect corrections
       safe_fetch: [IO]             # override NAIL's auto-detection
 ```
@@ -196,6 +220,7 @@ servers:
 - `allow: []` (empty) = all effects permitted, then `deny` subtracts
 - `allow: [FS, IO]` = only these effects, then `deny` subtracts
 - `deny` always wins over `allow`
+- `allow_resources` and `allow_prompts` are explicit opt-ins; by default they are blocked
 - `tool_overrides` lets you correct NAIL's automatic effect detection for specific tools
 
 ## License

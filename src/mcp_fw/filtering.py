@@ -3,14 +3,84 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import mcp.types as types
-from nail_lang import filter_by_effects, from_mcp, to_mcp
+from nail_lang import filter_by_effects, from_mcp, get_tool_effects, to_mcp
 
 from mcp_fw.policy import ServerPolicy, compute_effective_allowed
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ToolInspection:
+    name: str
+    inferred_effects: tuple[str, ...]
+    effective_effects: tuple[str, ...]
+    override_applied: bool
+    allowed: bool
+
+
+def _tools_to_mcp_dicts(backend_tools: list[types.Tool]) -> list[dict[str, Any]]:
+    """Convert MCP Tool objects into plain MCP dictionaries."""
+    mcp_dicts: list[dict[str, Any]] = []
+    for tool in backend_tools:
+        mcp_dicts.append({
+            "name": tool.name,
+            "description": tool.description or "",
+            "inputSchema": tool.inputSchema,
+        })
+    return mcp_dicts
+
+
+def _annotate_tools(
+    backend_tools: list[types.Tool],
+    overrides: dict[str, list[str]] | None = None,
+) -> list[dict[str, Any]]:
+    """Return FC-standard tool dictionaries annotated by NAIL."""
+    return from_mcp(_tools_to_mcp_dicts(backend_tools), existing_effects=overrides)
+
+
+def _extract_effects_by_name(fc_tools: list[dict[str, Any]]) -> dict[str, tuple[str, ...]]:
+    """Return a mapping of tool name to sorted effect tuple."""
+    effects_by_name: dict[str, tuple[str, ...]] = {}
+    for fc in fc_tools:
+        fn = fc.get("function", {})
+        name = fn.get("name")
+        if not name:
+            continue
+        effects = tuple(sorted(get_tool_effects(fc) or ()))
+        effects_by_name[name] = effects
+    return effects_by_name
+
+
+def inspect_tools(
+    backend_tools: list[types.Tool],
+    policy: ServerPolicy,
+) -> list[ToolInspection]:
+    """Return per-tool inspection details for operator-facing diagnostics."""
+    inferred_fc = _annotate_tools(backend_tools)
+    overrides = policy.tool_overrides if policy.tool_overrides else None
+    effective_fc = _annotate_tools(backend_tools, overrides=overrides) if overrides else inferred_fc
+    allowed_effects = compute_effective_allowed(policy)
+    filtered_fc = filter_by_effects(effective_fc, allowed=allowed_effects)
+
+    inferred_by_name = _extract_effects_by_name(inferred_fc)
+    effective_by_name = _extract_effects_by_name(effective_fc)
+    allowed_names = set(_extract_effects_by_name(filtered_fc))
+
+    return [
+        ToolInspection(
+            name=tool.name,
+            inferred_effects=inferred_by_name.get(tool.name, ()),
+            effective_effects=effective_by_name.get(tool.name, ()),
+            override_applied=inferred_by_name.get(tool.name, ()) != effective_by_name.get(tool.name, ()),
+            allowed=tool.name in allowed_names,
+        )
+        for tool in backend_tools
+    ]
 
 
 def build_allowed_tools(
@@ -30,18 +100,9 @@ def build_allowed_tools(
     allowed_effects = compute_effective_allowed(policy)
     logger.debug("Effective allowed effects: %s", sorted(allowed_effects))
 
-    # types.Tool → dict (MCP format)
-    mcp_dicts: list[dict[str, Any]] = []
-    for tool in backend_tools:
-        mcp_dicts.append({
-            "name": tool.name,
-            "description": tool.description or "",
-            "inputSchema": tool.inputSchema,
-        })
-
     # Annotate with NAIL effects
     overrides = policy.tool_overrides if policy.tool_overrides else None
-    fc_tools = from_mcp(mcp_dicts, existing_effects=overrides)
+    fc_tools = _annotate_tools(backend_tools, overrides=overrides)
 
     for fc in fc_tools:
         fn = fc.get("function", {})

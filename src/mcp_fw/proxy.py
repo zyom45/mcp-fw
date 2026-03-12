@@ -36,6 +36,22 @@ class FirewallProxy:
             _, self._allowed_names = build_allowed_tools(result.tools, self.policy)
         return self._allowed_names
 
+    def _ensure_capability_allowed(self, *, capability: str, enabled: bool) -> None:
+        """Raise if a non-tool MCP capability is disabled by policy."""
+        if enabled:
+            return
+        logger.warning("Blocked %s access by firewall policy", capability)
+        setting = "allow_resources" if capability == "resource" else "allow_prompts"
+        raise McpError(
+            types.ErrorData(
+                code=types.INVALID_PARAMS,
+                message=(
+                    f"{capability} access is blocked by firewall policy. "
+                    f"Set {setting}: true in policy to enable it."
+                ),
+            )
+        )
+
     async def run(self) -> None:
         """Start the proxy: connect to backend, then serve the frontend."""
         async with AsyncExitStack() as stack:
@@ -104,13 +120,21 @@ class FirewallProxy:
 
         @server.list_resources()
         async def handle_list_resources() -> list[types.Resource]:
+            self._ensure_capability_allowed(
+                capability="resource",
+                enabled=self.policy.allow_resources,
+            )
             result = await backend.list_resources()
-            logger.info("Forwarding %d resources (not filtered)", len(result.resources))
+            logger.info("Forwarding %d resources", len(result.resources))
             return list(result.resources)
 
         @server.read_resource()
         async def handle_read_resource(uri) -> str:
-            logger.info("Forwarding read_resource: %s (not filtered)", uri)
+            self._ensure_capability_allowed(
+                capability="resource",
+                enabled=self.policy.allow_resources,
+            )
+            logger.info("Forwarding read_resource: %s", uri)
             result = await backend.read_resource(uri)
             # Return the text of the first content item
             for content in result.contents:
@@ -122,13 +146,21 @@ class FirewallProxy:
 
         @server.list_prompts()
         async def handle_list_prompts() -> list[types.Prompt]:
+            self._ensure_capability_allowed(
+                capability="prompt",
+                enabled=self.policy.allow_prompts,
+            )
             result = await backend.list_prompts()
-            logger.info("Forwarding %d prompts (not filtered)", len(result.prompts))
+            logger.info("Forwarding %d prompts", len(result.prompts))
             return list(result.prompts)
 
         @server.get_prompt()
         async def handle_get_prompt(
             name: str, arguments: dict[str, str] | None
         ) -> types.GetPromptResult:
-            logger.info("Forwarding get_prompt: %s (not filtered)", name)
+            self._ensure_capability_allowed(
+                capability="prompt",
+                enabled=self.policy.allow_prompts,
+            )
+            logger.info("Forwarding get_prompt: %s", name)
             return await backend.get_prompt(name, arguments)

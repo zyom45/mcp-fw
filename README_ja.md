@@ -10,6 +10,8 @@
 mcp-fw は Claude Desktop と MCP サーバーの間に入るファイアウォールプロキシです。
 [NAIL](https://github.com/watari-ai/nail) のエフェクトラベルを使い、各サーバーが何をできるかを正確に制御します。
 
+デフォルトでは、`mcp-fw` は effect policy に従って tools を許可しつつ、MCP の `resources` と `prompts` は `allow_resources: true` / `allow_prompts: true` を明示しない限りブロックします。
+
 ```
 Claude Desktop  ←→  mcp-fw (プロキシ)  ←→  MCP Server
                      ↑
@@ -47,6 +49,8 @@ pip install mcp-fw
 
 ```bash
 mcp-fw run --config policy.yaml --server filesystem [--verbose] [--log-file /path/to/file.log]
+mcp-fw inspect --config policy.yaml --server filesystem
+mcp-fw status --server filesystem
 mcp-fw stop --server filesystem
 mcp-fw claude-remove [--server filesystem]
 mcp-fw menubar --config policy.yaml
@@ -77,6 +81,7 @@ servers:
 ```
 
 ファイルシステムサーバーにファイルの読み書き (`FS`, `IO`) を許可し、**ネットワークアクセスをすべてブロック** (`NET`) します。
+MCP の `resources` と `prompts` も、明示的に許可しない限りブロックされたままです。
 
 ### 2. Claude Desktop をプロキシに向ける
 
@@ -94,6 +99,15 @@ servers:
 ```
 
 これだけです。Claude Desktop は `mcp-fw` と通信し、mcp-fw がツールをフィルタしてから実サーバーに転送します。
+
+サーバーが MCP の `resources` や `prompts` を使う場合は、明示的に opt-in してください:
+
+```yaml
+servers:
+  filesystem:
+    allow_resources: true
+    allow_prompts: true
+```
 
 あとで mcp-fw のエントリを削除したい場合:
 
@@ -116,6 +130,14 @@ $ mcp-fw --config policy.yaml --server filesystem --verbose
 ```bash
 mcp-fw stop --server filesystem
 ```
+
+ポリシーを変える前に NAIL の推定結果を確認したい場合:
+
+```bash
+mcp-fw inspect --config policy.yaml --server filesystem
+```
+
+出力には、推定エフェクト、override 適用後の最終エフェクト、override による分類変更の有無、最終的な allowed/blocked が表示されます。
 
 ## メニューバーアプリ (macOS)
 
@@ -186,6 +208,8 @@ servers:
     args: ["@org/server", "/tmp"]   # コマンド引数
     allow: [FS, IO]                 # 許可するエフェクト (空 = すべて許可)
     deny: [NET]                     # ブロックするエフェクト (allow より優先)
+    allow_resources: false          # MCP resources API を許可
+    allow_prompts: false            # MCP prompts API を許可
     tool_overrides:                 # ツールごとのエフェクト補正
       safe_fetch: [IO]             # NAIL の自動検出を上書き
 ```
@@ -194,6 +218,7 @@ servers:
 - `allow: []` (空) = すべてのエフェクトを許可し、`deny` で除外
 - `allow: [FS, IO]` = これらのエフェクトのみ許可し、`deny` で除外
 - `deny` は常に `allow` より優先
+- `allow_resources` と `allow_prompts` は明示 opt-in です。未指定時はブロックされます
 - `tool_overrides` で NAIL の自動エフェクト検出を特定のツールに対して補正可能
 
 ## ライセンス

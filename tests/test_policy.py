@@ -18,6 +18,7 @@ def policy_file(tmp_path: Path) -> Path:
             args: ["@modelcontextprotocol/server-filesystem", "/tmp"]
             allow: [FS, IO]
             deny: [NET]
+            allow_resources: true
           open_server:
             command: python
             args: ["-m", "some_server"]
@@ -38,6 +39,8 @@ def test_load_policy_basic(policy_file: Path) -> None:
     assert policy.args == ["@modelcontextprotocol/server-filesystem", "/tmp"]
     assert policy.allow == {"FS", "IO"}
     assert policy.deny == {"NET"}
+    assert policy.allow_resources is True
+    assert policy.allow_prompts is False
 
 
 def test_load_policy_open_server(policy_file: Path) -> None:

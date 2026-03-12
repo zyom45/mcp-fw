@@ -156,10 +156,11 @@ A `[FW]` icon appears in your menubar:
 
 ```
 [FW]
-├── mcp-fw v0.2.7
+├── mcp-fw v0.2.8
 ├── ────────
 ├── ● filesystem
 │   ├── Status: Running
+│   ├── Checked = allowed, unchecked = blocked
 │   ├── ────────
 │   ├── [x] FS
 │   ├── [x] IO
@@ -177,7 +178,7 @@ A `[FW]` icon appears in your menubar:
 └── Quit
 ```
 
-- **Toggle effects** with checkboxes — changes are written to `policy.yaml` instantly
+- **Toggle effects** with checkboxes — checked means allowed, unchecked means blocked, and changes are written to `policy.yaml` instantly
 - **Sync to Claude Desktop** generates `claude_desktop_config.json` entries automatically
 - **Stop Proxy** terminates a running proxy process for a server
 - **Remove from Claude Desktop** deletes generated `*-fw` entries from `claude_desktop_config.json`

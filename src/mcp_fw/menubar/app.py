@@ -62,6 +62,10 @@ class McpFwMenuBarApp(rumps.App):
             status_item.set_callback(None)
             self._status_items[name] = status_item
             server_item.add(status_item)
+
+            hint_item = rumps.MenuItem(t("effects_hint"))
+            hint_item.set_callback(None)
+            server_item.add(hint_item)
             server_item.add(None)  # separator
 
             # Effect checkboxes

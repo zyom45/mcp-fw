@@ -154,10 +154,11 @@ mcp-fw-menubar --config policy.yaml
 
 ```
 [FW]
-├── mcp-fw v0.2.7
+├── mcp-fw v0.2.8
 ├── ────────
 ├── ● filesystem
 │   ├── Status: Running
+│   ├── チェック済み = 許可、未チェック = ブロック
 │   ├── ────────
 │   ├── [x] FS
 │   ├── [x] IO
@@ -175,7 +176,7 @@ mcp-fw-menubar --config policy.yaml
 └── Quit
 ```
 
-- **チェックボックスでエフェクトを切り替え** — 変更は即座に `policy.yaml` に反映
+- **チェックボックスでエフェクトを切り替え** — チェック済みは許可、未チェックはブロックで、変更は即座に `policy.yaml` に反映
 - **Sync to Claude Desktop** で `claude_desktop_config.json` のエントリを自動生成
 - **プロキシを停止** でサーバーごとの実行中プロセスを終了
 - **Claude Desktop設定から削除** で `claude_desktop_config.json` の `*-fw` エントリを削除
